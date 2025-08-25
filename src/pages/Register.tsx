@@ -17,7 +17,8 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/register', {
+      const API = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

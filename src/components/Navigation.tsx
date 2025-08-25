@@ -24,7 +24,8 @@ export const Navigation = ({ totalHotels, activeTab = 'inventory', onTabChange }
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      const API = (import.meta as any).env?.VITE_API_BASE_URL || '';
+      await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch {}
     localStorage.removeItem('auth');
     localStorage.removeItem('role');
