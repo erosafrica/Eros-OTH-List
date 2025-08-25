@@ -13,8 +13,12 @@ interface HotelFiltersComponentProps {
 }
 
 export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: HotelFiltersComponentProps) => {
-  const uniqueCountries = Array.from(new Set(hotels.map(h => h.country))).sort();
-  const uniqueCities = Array.from(new Set(hotels.map(h => h.city))).sort();
+  const uniqueCountries = Array.from(new Set(
+    hotels.map((h) => h.country).filter((c): c is string => !!c && c.trim() !== '')
+  )).sort();
+  const uniqueCities = Array.from(new Set(
+    hotels.map((h) => h.city).filter((c): c is string => !!c && c.trim() !== '')
+  )).sort();
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
 

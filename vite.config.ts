@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       '/api': {
         target: 'https://eros-oth-list-server.onrender.com',
+        // target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },

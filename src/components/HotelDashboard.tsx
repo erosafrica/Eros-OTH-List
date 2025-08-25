@@ -30,11 +30,26 @@ export const HotelDashboard = () => {
   const [itemsPerPage] = useState(12);
   const { toast } = useToast();
 
-  // Load from API with fallback to mock generator
+  // Admin state (from localStorage role)
+  const [isAdmin, setIsAdmin] = useState<boolean>(typeof window !== 'undefined' ? localStorage.getItem('role') === 'admin' : false);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'role') setIsAdmin(localStorage.getItem('role') === 'admin');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Load from API
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/hotels');
+        const res = await fetch('/api/hotels', { credentials: 'include' });
+        if (res.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
         if (!res.ok) throw new Error('Failed');
         const data: Hotel[] = await res.json();
         setHotels(data);
@@ -97,8 +112,17 @@ export const HotelDashboard = () => {
         const res = await fetch('/api/hotels', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(hotelData),
         });
+        if (res.status === 401) { 
+          toast({ title: 'Login required', description: 'Please log in to add hotels.', variant: 'destructive' });
+          return; 
+        }
+        if (res.status === 403) {
+          toast({ title: 'Admin required', description: 'Only admins can add hotels.', variant: 'destructive' });
+          return;
+        }
         if (!res.ok) throw new Error('Create failed');
         const created: Hotel = await res.json();
         setHotels(prev => [...prev, created]);
@@ -117,8 +141,17 @@ export const HotelDashboard = () => {
         const res = await fetch(`/api/hotels/${editingHotel.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(hotelData),
         });
+        if (res.status === 401) { 
+          toast({ title: 'Login required', description: 'Please log in to edit hotels.', variant: 'destructive' });
+          return; 
+        }
+        if (res.status === 403) {
+          toast({ title: 'Admin required', description: 'Only admins can edit hotels.', variant: 'destructive' });
+          return;
+        }
         if (!res.ok) throw new Error('Update failed');
         const updated: Hotel = await res.json();
         setHotels(prev => prev.map(h => (h.id === editingHotel.id ? updated : h)));
@@ -135,7 +168,15 @@ export const HotelDashboard = () => {
     (async () => {
       const hotel = hotels.find(h => h.id === hotelId);
       try {
-        const res = await fetch(`/api/hotels/${hotelId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/hotels/${hotelId}`, { method: 'DELETE', credentials: 'include' });
+        if (res.status === 401) { 
+          toast({ title: 'Login required', description: 'Please log in to delete hotels.', variant: 'destructive' });
+          return; 
+        }
+        if (res.status === 403) {
+          toast({ title: 'Admin required', description: 'Only admins can delete hotels.', variant: 'destructive' });
+          return;
+        }
         if (!res.ok) throw new Error('Delete failed');
         setHotels(prev => prev.filter(h => h.id !== hotelId));
       } catch {
@@ -203,6 +244,8 @@ export const HotelDashboard = () => {
           <Button 
             onClick={() => setIsModalOpen(true)}
             className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+            disabled={!isAdmin}
+            title={isAdmin ? 'Add a new hotel' : 'Admin required to add'}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Hotel
