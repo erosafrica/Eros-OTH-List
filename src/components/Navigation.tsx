@@ -1,6 +1,8 @@
 import { Building2, BarChart3, Settings, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 
 interface NavigationProps {
@@ -10,6 +12,25 @@ interface NavigationProps {
 }
 
 export const Navigation = ({ totalHotels, activeTab = 'inventory', onTabChange }: NavigationProps) => {
+  const [isAuth, setIsAuth] = useState<boolean>(typeof window !== 'undefined' ? localStorage.getItem('auth') === '1' : false);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'auth') setIsAuth(localStorage.getItem('auth') === '1');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {}
+    localStorage.removeItem('auth');
+    localStorage.removeItem('role');
+    setIsAuth(false);
+    window.location.href = '/';
+  };
   const navItems = [
     {
       id: 'inventory',
@@ -95,6 +116,20 @@ export const Navigation = ({ totalHotels, activeTab = 'inventory', onTabChange }
             <Badge variant="outline" className="text-xs hidden sm:inline-flex">
               OTH Hotels
             </Badge>
+            {isAuth ? (
+              <Button variant="outline" size="sm" onClick={logout}>
+                Logout
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/login">Login</Link>
+                </Button>
+                <Button variant="default" size="sm" asChild>
+                  <Link to="/register">Register</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

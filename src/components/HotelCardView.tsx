@@ -1,5 +1,6 @@
 import { Hotel } from '@/types/hotel';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit, Trash2, Star, MapPin, Calendar } from 'lucide-react';
@@ -24,6 +25,12 @@ interface HotelCardViewProps {
 }
 
 export const HotelCardView = ({ hotels, onEdit, onDelete, year }: HotelCardViewProps) => {
+  const [canEdit, setCanEdit] = useState(false);
+  useEffect(() => {
+    try {
+      setCanEdit(localStorage.getItem('role') === 'admin');
+    } catch {}
+  }, []);
   const getContractStatus = (hotel: Hotel) => {
     const targetYear = year ?? new Date().getFullYear();
     let yearData = hotel.rateAvailability.find(rate => rate.year === targetYear);
@@ -119,7 +126,8 @@ export const HotelCardView = ({ hotels, onEdit, onDelete, year }: HotelCardViewP
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onEdit(hotel)}
+                    onClick={() => canEdit && onEdit(hotel)}
+                    disabled={!canEdit}
                     className="hover:bg-primary/10"
                   >
                     <Edit className="h-4 w-4 mr-1" />
@@ -130,6 +138,7 @@ export const HotelCardView = ({ hotels, onEdit, onDelete, year }: HotelCardViewP
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={!canEdit}
                         className="hover:bg-destructive/10 text-destructive border-destructive/20"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -145,7 +154,7 @@ export const HotelCardView = ({ hotels, onEdit, onDelete, year }: HotelCardViewP
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onDelete(hotel.id)} className="bg-destructive hover:bg-destructive/90">
+                        <AlertDialogAction onClick={() => canEdit && onDelete(hotel.id)} className="bg-destructive hover:bg-destructive/90">
                           Delete
                         </AlertDialogAction>
                       </AlertDialogFooter>

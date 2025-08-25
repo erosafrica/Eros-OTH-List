@@ -1,4 +1,5 @@
 import { Hotel } from '@/types/hotel';
+import { useEffect, useState } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -32,6 +33,12 @@ interface HotelTableProps {
 }
 
 export const HotelTable = ({ hotels, onEdit, onDelete, year }: HotelTableProps) => {
+  const [canEdit, setCanEdit] = useState(false);
+  useEffect(() => {
+    try {
+      setCanEdit(localStorage.getItem('role') === 'admin');
+    } catch {}
+  }, []);
   const getContractStatus = (hotel: Hotel) => {
     const targetYear = year ?? new Date().getFullYear();
     let yearData = hotel.rateAvailability.find(rate => rate.year === targetYear);
@@ -136,7 +143,8 @@ export const HotelTable = ({ hotels, onEdit, onDelete, year }: HotelTableProps) 
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onEdit(hotel)}
+                          onClick={() => canEdit && onEdit(hotel)}
+                          disabled={!canEdit}
                           className="h-8 w-8 p-0 hover:bg-primary/10"
                         >
                           <Edit className="h-4 w-4 text-primary" />
@@ -146,6 +154,7 @@ export const HotelTable = ({ hotels, onEdit, onDelete, year }: HotelTableProps) 
                             <Button
                               variant="ghost"
                               size="sm"
+                              disabled={!canEdit}
                               className="h-8 w-8 p-0 hover:bg-destructive/10"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -160,7 +169,7 @@ export const HotelTable = ({ hotels, onEdit, onDelete, year }: HotelTableProps) 
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => onDelete(hotel.id)} className="bg-destructive hover:bg-destructive/90">
+                              <AlertDialogAction onClick={() => canEdit && onDelete(hotel.id)} className="bg-destructive hover:bg-destructive/90">
                                 Delete
                               </AlertDialogAction>
                             </AlertDialogFooter>
