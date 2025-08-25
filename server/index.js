@@ -21,11 +21,15 @@ const { Pool } = pkg;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'https://eros-oth-list.vercel.app';
+const SECURE_COOKIES = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
 
 app.use(cors({
   origin: [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
+    FRONTEND_ORIGIN,
+    'https://eros-oth-list.vercel.app',
   ],
   credentials: true,
 }));
@@ -128,8 +132,8 @@ app.post('/api/auth/login', async (req, res) => {
     const token = signToken({ sub: user.id, email: user.email, role: user.role });
     res.cookie('token', token, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.COOKIE_SECURE === 'true',
+      sameSite: SECURE_COOKIES ? 'none' : 'lax',
+      secure: SECURE_COOKIES,
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
     return res.json({ ok: true, user: { id: user.id, email: user.email, role: user.role } });

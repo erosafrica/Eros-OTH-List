@@ -41,11 +41,13 @@ export const HotelDashboard = () => {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  const API = import.meta.env.VITE_API_BASE_URL || '';
+
   // Load from API
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/hotels', { credentials: 'include' });
+        const res = await fetch(`${API}/api/hotels`, { credentials: 'include' });
         if (res.status === 401) {
           window.location.href = '/login';
           return;
@@ -109,7 +111,7 @@ export const HotelDashboard = () => {
   const handleAddHotel = (hotelData: Omit<Hotel, 'id' | 'createdAt' | 'updatedAt'>) => {
     (async () => {
       try {
-        const res = await fetch('/api/hotels', {
+        const res = await fetch(`${API}/api/hotels`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -138,7 +140,7 @@ export const HotelDashboard = () => {
     
     (async () => {
       try {
-        const res = await fetch(`/api/hotels/${editingHotel.id}`, {
+        const res = await fetch(`${API}/api/hotels/${editingHotel.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -168,7 +170,7 @@ export const HotelDashboard = () => {
     (async () => {
       const hotel = hotels.find(h => h.id === hotelId);
       try {
-        const res = await fetch(`/api/hotels/${hotelId}`, { method: 'DELETE', credentials: 'include' });
+        const res = await fetch(`${API}/api/hotels/${hotelId}`, { method: 'DELETE', credentials: 'include' });
         if (res.status === 401) { 
           toast({ title: 'Login required', description: 'Please log in to delete hotels.', variant: 'destructive' });
           return; 
