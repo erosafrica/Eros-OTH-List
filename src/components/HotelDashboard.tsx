@@ -197,8 +197,8 @@ export const HotelDashboard = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Hotel Inventory Management</h1>
-            <p className="text-muted-foreground mt-1">Manage your hotel portfolio across East & South Africa</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Eros Africa OTH Inventory Database</h1>
+            <p className="text-muted-foreground mt-1">Hotel contract present in the B2B Online Booking Platform </p>
           </div>
           <Button 
             onClick={() => setIsModalOpen(true)}

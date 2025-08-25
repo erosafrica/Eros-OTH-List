@@ -2,6 +2,7 @@ import { Building2, BarChart3, Settings, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
+
 interface NavigationProps {
   totalHotels: number;
   activeTab?: string;
@@ -43,12 +44,19 @@ export const Navigation = ({ totalHotels, activeTab = 'inventory', onTabChange }
         <div className="flex items-center justify-between h-16">
           {/* Logo/Brand */}
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            {/* <div className="p-2 bg-primary/10 rounded-lg">
               <Building2 className="h-6 w-6 text-primary" />
-            </div>
+            </div> */}
+            <a href="/">
+              <img 
+                src="/logo.png" 
+                alt="Eros Africa Logo" 
+                className="h-8 w-8 rounded-lg object-contain"
+              />
+            </a>
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-foreground">HotelManager</h1>
-              <p className="text-xs text-muted-foreground">Inventory Management System</p>
+              <h1 className="text-xl font-bold text-foreground">Eros Africa</h1>
+              <p className="text-xs text-muted-foreground">OTH Hotels Inventory</p>
             </div>
           </div>
 
@@ -85,7 +93,7 @@ export const Navigation = ({ totalHotels, activeTab = 'inventory', onTabChange }
           {/* Quick Actions */}
           <div className="flex items-center space-x-2">
             <Badge variant="outline" className="text-xs hidden sm:inline-flex">
-              East & South Africa
+              OTH Hotels
             </Badge>
           </div>
         </div>
