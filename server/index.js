@@ -28,10 +28,11 @@ const SECURE_COOKIES = process.env.COOKIE_SECURE === 'true' || process.env.NODE_
 
 app.use(cors({
   origin: [
-    'https://eros-oth-list.vercel.app',
-    'http://localhost:8080',
-    'http://127.0.0.1:8080',
-    'https://eros-oth-list.vercel.app',
+    FRONTEND_ORIGIN,
+    // 'https://eros-oth-list.vercel.app',
+    // 'http://localhost:8080',
+    // 'http://127.0.0.1:8080',
+    // 'https://eros-oth-list.vercel.app',
   ],
   credentials: true,
 }));
