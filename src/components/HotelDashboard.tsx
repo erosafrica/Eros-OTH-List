@@ -19,7 +19,6 @@ export const HotelDashboard = () => {
   const [totalHotels, setTotalHotels] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('inventory');
   const [filters, setFilters] = useState<HotelFilters>({
     search: '',
@@ -51,7 +50,6 @@ export const HotelDashboard = () => {
   // Load from API with server-side filtering
   const fetchHotels = async (showLoading = true, page = currentPage) => {
     if (showLoading) setIsLoading(true);
-    else setIsRefreshing(true);
     
     try {
       // Build query parameters for server-side filtering
@@ -110,7 +108,6 @@ export const HotelDashboard = () => {
       });
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -123,11 +120,11 @@ export const HotelDashboard = () => {
   useEffect(() => {
     setCurrentPage(1);
     fetchHotels(false, 1);
-  }, [filters]);
+  }, [filters.search, filters.country, filters.city, filters.year, filters.contractStatus]);
 
-  // Refetch when page changes
+  // Refetch when page changes (but not on initial load)
   useEffect(() => {
-    if (currentPage > 1) {
+    if (currentPage > 1 && totalHotels > 0) {
       fetchHotels(false, currentPage);
     }
   }, [currentPage]);
@@ -322,25 +319,17 @@ export const HotelDashboard = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Eros Africa OTH Inventory Database</h1>
             <p className="text-muted-foreground mt-1">Hotel contract present in the B2B Online Booking Platform </p>
           </div>
-                      <div className="flex items-center gap-2">
-                          <Button 
-              onClick={() => fetchHotels(false)}
-              variant="outline"
-              size="sm"
-              disabled={isRefreshing}
+                                <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+              disabled={!isAdmin}
+              title={isAdmin ? 'Add a new hotel' : 'Admin required to add'}
             >
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              <Plus className="w-4 h-4 mr-2" />
+              Add Hotel
             </Button>
-              <Button 
-                onClick={() => setIsModalOpen(true)}
-                className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
-                disabled={!isAdmin}
-                title={isAdmin ? 'Add a new hotel' : 'Admin required to add'}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Hotel
-              </Button>
-            </div>
+          </div>
         </div>
 
         {activeTab === 'inventory' ? (

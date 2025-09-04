@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Hotel } from '@/types/hotel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Building2, MapPin, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Building2, MapPin, CheckCircle, XCircle } from 'lucide-react';
 
 interface HotelStatsProps {
   hotels: Hotel[];
@@ -50,9 +49,10 @@ export const HotelStats = ({ hotels, totalHotels }: HotelStatsProps) => {
     }
   };
 
+  // Only fetch stats once on component mount
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, []); // Empty dependency array to run only once
 
   // Use database stats for all metrics
   const stats = [
@@ -94,39 +94,25 @@ export const HotelStats = ({ hotels, totalHotels }: HotelStatsProps) => {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">Database Statistics</h3>
-        <Button 
-          onClick={fetchStats}
-          variant="outline"
-          size="sm"
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh Stats
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="border-border/50 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {isLoading ? '...' : stat.value}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {stats.map((stat) => (
+        <Card key={stat.title} className="border-border/50 hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {stat.title}
+            </CardTitle>
+            <stat.icon className={`h-4 w-4 ${stat.color}`} />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">
+              {isLoading ? '...' : stat.value}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {stat.description}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 };
