@@ -46,6 +46,28 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
     setDraft(prev => ({ ...prev, [key]: value }));
   };
 
+  const handleApplyFilters = () => {
+    onFiltersChange(draft);
+  };
+
+  const handleClearFilters = () => {
+    const cleared: HotelFilters = {
+      search: '',
+      country: '',
+      city: '',
+      year: currentYear,
+      contractStatus: 'all',
+    };
+    setDraft(cleared);
+    onFiltersChange(cleared);
+  };
+
+  // Check if filters are different from current
+  const hasChanges = JSON.stringify(draft) !== JSON.stringify(filters);
+  
+  // Check if any filters are active
+  const hasActiveFilters = filters.search || filters.country || filters.city || filters.contractStatus !== 'all';
+
   return (
     <Card className="border-border/50">
       <CardContent className="p-4">
@@ -54,7 +76,7 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
           <h3 className="text-sm font-medium text-foreground">Filters</h3>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -63,7 +85,7 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
               value={draft.search}
               onChange={(e) => handleDraftChange('search', e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') onFiltersChange(draft);
+                if (e.key === 'Enter') handleApplyFilters();
               }}
               className="pl-10 border-input"
             />
@@ -130,29 +152,25 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
               <SelectItem value="unavailable">Unavailable</SelectItem>
             </SelectContent>
           </Select>
-          {/* Apply / Clear Buttons (on small widths they will flow below) */}
-          <div className="flex items-center gap-2">
-            <Button className="w-full md:w-auto" onClick={() => onFiltersChange(draft)}>
-              Apply Filters
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full md:w-auto"
-              onClick={() => {
-                const cleared: HotelFilters = {
-                  search: '',
-                  country: '',
-                  city: '',
-                  year: currentYear,
-                  contractStatus: 'all',
-                };
-                setDraft(cleared);
-                onFiltersChange(cleared);
-              }}
-            >
-              Clear
-            </Button>
-          </div>
+        </div>
+
+        {/* Apply / Clear Buttons */}
+        <div className="flex items-center gap-2">
+          <Button 
+            className="w-full md:w-auto" 
+            onClick={handleApplyFilters}
+            disabled={!hasChanges}
+          >
+            Apply Filters
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full md:w-auto"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+          >
+            Clear Filters
+          </Button>
         </div>
       </CardContent>
     </Card>

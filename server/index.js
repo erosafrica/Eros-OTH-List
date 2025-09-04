@@ -8,9 +8,11 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcrypt';
+import compression from 'compression';
 const SALT_ROUNDS = 10;
 import { signToken, authRequired, requireRole } from './helpers.js';
 import { randomUUID } from 'crypto';
+import { performanceMiddleware, logDatabaseQuery } from './performance.js';
 
 // Setup env
 const __filename = fileURLToPath(import.meta.url);
@@ -33,9 +35,11 @@ app.use(cors({
   ],
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(helmet());
 app.use(cookieParser());
+app.use(compression());
+app.use(performanceMiddleware);
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10000, // limit each IP to 100 requests per windowMs
@@ -52,6 +56,18 @@ const pool = new Pool({
     : undefined,
 });
 
+// Simple in-memory cache for hotels API
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCacheKey(params) {
+  return `hotels:${JSON.stringify(params)}`;
+}
+
+function isCacheValid(cacheEntry) {
+  return cacheEntry && (Date.now() - cacheEntry.timestamp) < CACHE_TTL;
+}
+
 // Initialize table
 async function ensureSchema() {
   const client = await pool.connect();
@@ -67,8 +83,15 @@ async function ensureSchema() {
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
-      create index if not exists idx_hotels_city on hotels(city);
-      create index if not exists idx_hotels_country on hotels(country);
+              -- Create indexes for better query performance
+        create index if not exists idx_hotels_city on hotels(city);
+        create index if not exists idx_hotels_country on hotels(country);
+        create index if not exists idx_hotels_name on hotels(name);
+        create index if not exists idx_hotels_created_at on hotels(created_at desc);
+        create index if not exists idx_hotels_country_city on hotels(country, city);
+        
+        -- GIN index for JSONB queries on rate_availability
+        create index if not exists idx_hotels_rate_availability_gin on hotels using gin(rate_availability);
 
       create table if not exists users (
         id text primary key,
@@ -151,10 +174,96 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/hotels', async (_req, res) => {
+app.get('/api/hotels', async (req, res) => {
   try {
-    const { rows } = await pool.query('select * from hotels order by created_at desc limit 1000');
-    res.json(rows.map(toApi));
+    const { 
+      page = 1, 
+      limit = 50, 
+      search = '', 
+      country = '', 
+      city = '', 
+      year = new Date().getFullYear(),
+      contractStatus = 'all'
+    } = req.query;
+
+    // Check cache first
+    const cacheKey = getCacheKey(req.query);
+    const cachedResult = cache.get(cacheKey);
+    if (isCacheValid(cachedResult)) {
+      return res.json(cachedResult.data);
+    }
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = Math.min(parseInt(limit), 100); // Cap at 100 for performance
+
+    let whereConditions = [];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    // Build search conditions
+    if (search) {
+      whereConditions.push(`(name ILIKE $${paramIndex} OR city ILIKE $${paramIndex} OR country ILIKE $${paramIndex})`);
+      queryParams.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (country) {
+      whereConditions.push(`country = $${paramIndex}`);
+      queryParams.push(country);
+      paramIndex++;
+    }
+
+    if (city) {
+      whereConditions.push(`city = $${paramIndex}`);
+      queryParams.push(city);
+      paramIndex++;
+    }
+
+    // Contract status filtering
+    if (contractStatus !== 'all') {
+      const yearNum = parseInt(year);
+      if (contractStatus === 'available') {
+        whereConditions.push(`rate_availability @> '[{"year": ${yearNum}, "available": true}]'`);
+      } else if (contractStatus === 'unavailable') {
+        whereConditions.push(`rate_availability @> '[{"year": ${yearNum}, "available": false}]'`);
+      }
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Count total records for pagination
+    const countQuery = `SELECT COUNT(*) FROM hotels ${whereClause}`;
+    const countResult = await pool.query(countQuery, queryParams);
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    // Get paginated results
+    const dataQuery = `
+      SELECT * FROM hotels 
+      ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    queryParams.push(limitNum, offset);
+    
+    const { rows } = await pool.query(dataQuery, queryParams);
+    
+    const result = {
+      hotels: rows.map(toApi),
+      pagination: {
+        page: parseInt(page),
+        limit: limitNum,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitNum)
+      }
+    };
+
+    // Cache the result
+    cache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    res.json(result);
   } catch (err) {
     console.error('GET /api/hotels error', err);
     res.status(500).json({ error: 'Failed to fetch hotels' });
@@ -175,6 +284,10 @@ app.post('/api/hotels', authRequired, requireRole('admin'), async (req, res) => 
        returning *`,
       [id, name, country, city, stars ?? null, JSON.stringify(rateAvailability)]
     );
+    
+    // Clear cache when new hotel is added
+    cache.clear();
+    
     res.status(201).json(toApi(rows[0]));
   } catch (err) {
     console.error('POST /api/hotels error', err);
@@ -199,6 +312,10 @@ app.put('/api/hotels/:id', authRequired, requireRole('admin'), async (req, res) 
       [id, name ?? null, country ?? null, city ?? null, stars ?? null, rateAvailability ? JSON.stringify(rateAvailability) : null]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Clear cache when hotel is updated
+    cache.clear();
+    
     res.json(toApi(rows[0]));
   } catch (err) {
     console.error('PUT /api/hotels/:id error', err);
@@ -211,6 +328,10 @@ app.delete('/api/hotels/:id', authRequired, requireRole('admin'), async (req, re
     const { id } = req.params;
     const result = await pool.query('delete from hotels where id = $1', [id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    
+    // Clear cache when hotel is deleted
+    cache.clear();
+    
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/hotels/:id error', err);

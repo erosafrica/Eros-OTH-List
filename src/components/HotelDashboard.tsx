@@ -12,9 +12,12 @@ import { Navigation } from './Navigation';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export const HotelDashboard = () => {
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('inventory');
   const [filters, setFilters] = useState<HotelFilters>({
     search: '',
@@ -43,29 +46,59 @@ export const HotelDashboard = () => {
 
   const API = import.meta.env.VITE_API_BASE_URL || '';
 
-  // Load from API
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API}/api/hotels`, { credentials: 'include' });
-        if (res.status === 401) {
-          window.location.href = '/login';
-          return;
+  // Load from API (simple fetch without server-side filtering)
+  const fetchHotels = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    else setIsRefreshing(true);
+    
+    try {
+      const res = await fetch(`${API}/api/hotels`, { 
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
         }
-        if (!res.ok) throw new Error('Failed');
-        const data: Hotel[] = await res.json();
-        setHotels(data);
-      } catch {
-        setHotels([]);
-        toast({
-          title: 'Failed to load hotels',
-          description: 'Could not fetch data from the server. Please try again later.',
-          variant: 'destructive',
-        });
+      });
+      
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
       }
-    })();
+      if (!res.ok) throw new Error('Failed to fetch hotels');
+      
+      const data = await res.json();
+      
+      // Handle both old and new API response formats
+      if (Array.isArray(data)) {
+        // Old format: direct array of hotels
+        setHotels(data);
+      } else if (data.hotels && data.pagination) {
+        // New format: paginated response
+        setHotels(data.hotels);
+      } else {
+        // Fallback for unexpected format
+        console.warn('Unexpected API response format:', data);
+        setHotels([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch hotels:', error);
+      setHotels([]);
+      toast({
+        title: 'Failed to load hotels',
+        description: 'Could not fetch data from the server. Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchHotels();
   }, []);
 
+  // Client-side filtering
   const filteredHotels = useMemo(() => {
     return hotels.filter(hotel => {
       const matchesSearch = hotel.name.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -127,7 +160,8 @@ export const HotelDashboard = () => {
         }
         if (!res.ok) throw new Error('Create failed');
         const created: Hotel = await res.json();
-        setHotels(prev => [...prev, created]);
+        // Refresh the data to show the new hotel
+        fetchHotels(false);
         toast({ title: 'Hotel Added', description: `${created.name} has been added to the inventory.` });
       } catch {
         toast({ title: 'Add failed', description: 'Could not create hotel. Please try again later.', variant: 'destructive' });
@@ -180,7 +214,8 @@ export const HotelDashboard = () => {
           return;
         }
         if (!res.ok) throw new Error('Delete failed');
-        setHotels(prev => prev.filter(h => h.id !== hotelId));
+        // Refresh the data to reflect the deletion
+        fetchHotels(false);
       } catch {
         toast({ title: 'Delete failed', description: 'Could not delete hotel. Please try again later.', variant: 'destructive' });
       } finally {
@@ -199,7 +234,55 @@ export const HotelDashboard = () => {
     setEditingHotel(null);
   };
 
+  // Loading skeleton components
+  const renderLoadingSkeleton = () => {
+    const skeletons = Array.from({ length: itemsPerPage }, (_, i) => (
+      <div key={i} className="space-y-3">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    ));
+
+    switch (viewMode) {
+      case 'grid':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="space-y-3 p-4 border rounded-lg">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ))}
+          </div>
+        );
+      case 'card':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="space-y-3 p-6 border rounded-lg">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ))}
+          </div>
+        );
+      default:
+        return (
+          <div className="space-y-4">
+            {skeletons}
+          </div>
+        );
+    }
+  };
+
   const renderHotelView = () => {
+    if (isLoading) {
+      return renderLoadingSkeleton();
+    }
+
     switch (viewMode) {
       case 'grid':
         return (
@@ -243,21 +326,31 @@ export const HotelDashboard = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Eros Africa OTH Inventory Database</h1>
             <p className="text-muted-foreground mt-1">Hotel contract present in the B2B Online Booking Platform </p>
           </div>
-          <Button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
-            disabled={!isAdmin}
-            title={isAdmin ? 'Add a new hotel' : 'Admin required to add'}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Hotel
-          </Button>
+                      <div className="flex items-center gap-2">
+                          <Button 
+              onClick={() => fetchHotels(false)}
+              variant="outline"
+              size="sm"
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+              <Button 
+                onClick={() => setIsModalOpen(true)}
+                className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+                disabled={!isAdmin}
+                title={isAdmin ? 'Add a new hotel' : 'Admin required to add'}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Hotel
+              </Button>
+            </div>
         </div>
 
         {activeTab === 'inventory' ? (
           <>
             {/* Stats */}
-            <HotelStats hotels={hotels} />
+            <HotelStats hotels={filteredHotels} />
 
             {/* Filters */}
             <HotelFiltersComponent 
