@@ -16,6 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const HotelDashboard = () => {
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [totalHotels, setTotalHotels] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('inventory');
@@ -46,13 +48,24 @@ export const HotelDashboard = () => {
 
   const API = import.meta.env.VITE_API_BASE_URL || '';
 
-  // Load from API (simple fetch without server-side filtering)
-  const fetchHotels = async (showLoading = true) => {
+  // Load from API with server-side filtering
+  const fetchHotels = async (showLoading = true, page = currentPage) => {
     if (showLoading) setIsLoading(true);
     else setIsRefreshing(true);
     
     try {
-      const res = await fetch(`${API}/api/hotels`, { 
+      // Build query parameters for server-side filtering
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString(),
+        search: filters.search,
+        country: filters.country,
+        city: filters.city,
+        year: filters.year.toString(),
+        contractStatus: filters.contractStatus,
+      });
+
+      const res = await fetch(`${API}/api/hotels?${params}`, { 
         credentials: 'include',
         headers: {
           'Cache-Control': 'no-cache',
@@ -71,17 +84,25 @@ export const HotelDashboard = () => {
       if (Array.isArray(data)) {
         // Old format: direct array of hotels
         setHotels(data);
+        setTotalHotels(data.length);
+        setTotalPages(1);
       } else if (data.hotels && data.pagination) {
         // New format: paginated response
         setHotels(data.hotels);
+        setTotalHotels(data.pagination.total);
+        setTotalPages(data.pagination.totalPages);
       } else {
         // Fallback for unexpected format
         console.warn('Unexpected API response format:', data);
         setHotels([]);
+        setTotalHotels(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Failed to fetch hotels:', error);
       setHotels([]);
+      setTotalHotels(0);
+      setTotalPages(0);
       toast({
         title: 'Failed to load hotels',
         description: 'Could not fetch data from the server. Please try again later.',
@@ -98,43 +119,18 @@ export const HotelDashboard = () => {
     fetchHotels();
   }, []);
 
-  // Client-side filtering
-  const filteredHotels = useMemo(() => {
-    return hotels.filter(hotel => {
-      const matchesSearch = hotel.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-                           hotel.city.toLowerCase().includes(filters.search.toLowerCase()) ||
-                           hotel.country.toLowerCase().includes(filters.search.toLowerCase());
-      
-      const matchesCountry = !filters.country || hotel.country === filters.country;
-      const matchesCity = !filters.city || hotel.city === filters.city;
-      
-      let matchesContract = true;
-      if (filters.contractStatus !== 'all') { 
-        const targetYear = filters.year || new Date().getFullYear();
-        // Use nearest-year fallback like views to avoid mismatch
-        let yearData = hotel.rateAvailability.find(rate => rate.year === targetYear);
-        if (!yearData && hotel.rateAvailability.length > 0) {
-          yearData = hotel.rateAvailability.reduce((prev, curr) => {
-            return Math.abs(curr.year - targetYear) < Math.abs(prev.year - targetYear) ? curr : prev;
-          });
-        }
-        if (filters.contractStatus === 'available') {
-          matchesContract = yearData?.available === true;
-        } else {
-          matchesContract = yearData?.available === false;
-        }
-      }
+  // Refetch when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchHotels(false, 1);
+  }, [filters]);
 
-      return matchesSearch && matchesCountry && matchesCity && matchesContract;
-    });
-  }, [hotels, filters]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredHotels.length / itemsPerPage);
-  const paginatedHotels = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredHotels.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredHotels, currentPage, itemsPerPage]);
+  // Refetch when page changes
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchHotels(false, currentPage);
+    }
+  }, [currentPage]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -287,7 +283,7 @@ export const HotelDashboard = () => {
       case 'grid':
         return (
           <HotelGridView 
-            hotels={paginatedHotels}
+            hotels={hotels}
             onEdit={openEditModal}
             onDelete={handleDeleteHotel}
             year={filters.year}
@@ -296,7 +292,7 @@ export const HotelDashboard = () => {
       case 'card':
         return (
           <HotelCardView 
-            hotels={paginatedHotels}
+            hotels={hotels}
             onEdit={openEditModal}
             onDelete={handleDeleteHotel}
             year={filters.year}
@@ -305,7 +301,7 @@ export const HotelDashboard = () => {
       default:
         return (
           <HotelTable 
-            hotels={paginatedHotels}
+            hotels={hotels}
             onEdit={openEditModal}
             onDelete={handleDeleteHotel}
             year={filters.year}
@@ -317,7 +313,7 @@ export const HotelDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <Navigation totalHotels={hotels.length} activeTab={activeTab} onTabChange={setActiveTab} />
+      <Navigation totalHotels={totalHotels} activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Header */}
@@ -350,20 +346,21 @@ export const HotelDashboard = () => {
         {activeTab === 'inventory' ? (
           <>
             {/* Stats */}
-            <HotelStats hotels={filteredHotels} />
+            <HotelStats hotels={hotels} totalHotels={totalHotels} />
 
             {/* Filters */}
             <HotelFiltersComponent 
               filters={filters}
               onFiltersChange={setFilters}
               hotels={hotels}
+              totalHotels={totalHotels}
             />
 
             {/* View Controls */}
             <ViewControls
               viewMode={viewMode}
               onViewModeChange={setViewMode}
-              totalCount={filteredHotels.length}
+              totalCount={totalHotels}
               currentPage={currentPage}
               totalPages={totalPages}
             />

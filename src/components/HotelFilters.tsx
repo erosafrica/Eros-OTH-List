@@ -10,17 +10,56 @@ interface HotelFiltersComponentProps {
   filters: HotelFilters;
   onFiltersChange: (filters: HotelFilters) => void;
   hotels: Hotel[];
+  totalHotels: number;
 }
 
-export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: HotelFiltersComponentProps) => {
-  const uniqueCountries = Array.from(new Set(
-    hotels.map((h) => h.country).filter((c): c is string => !!c && c.trim() !== '')
-  )).sort();
-  const uniqueCities = Array.from(new Set(
-    hotels.map((h) => h.city).filter((c): c is string => !!c && c.trim() !== '')
-  )).sort();
+interface FilterOptions {
+  countries: string[];
+  cities: string[];
+}
+
+export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels, totalHotels }: HotelFiltersComponentProps) => {
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ countries: [], cities: [] });
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
+  
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
+
+  const API = import.meta.env.VITE_API_BASE_URL || '';
+
+  // Fetch filter options from database
+  const fetchFilterOptions = async () => {
+    setIsLoadingOptions(true);
+    try {
+      const res = await fetch(`${API}/api/hotels/filter-options`, {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      });
+      
+      if (res.ok) {
+        const options = await res.json();
+        setFilterOptions(options);
+      }
+    } catch (error) {
+      console.error('Failed to fetch filter options:', error);
+      // Fallback to current page data
+      const uniqueCountries = Array.from(new Set(
+        hotels.map((h) => h.country).filter((c): c is string => !!c && c.trim() !== '')
+      )).sort();
+      const uniqueCities = Array.from(new Set(
+        hotels.map((h) => h.city).filter((c): c is string => !!c && c.trim() !== '')
+      )).sort();
+      setFilterOptions({ countries: uniqueCountries, cities: uniqueCities });
+    } finally {
+      setIsLoadingOptions(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
 
   // Local draft state for staged changes
   const [draft, setDraft] = useState<HotelFilters>({
@@ -74,6 +113,9 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
         <div className="flex items-center space-x-2 mb-4">
           <Filter className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-medium text-foreground">Filters</h3>
+          <span className="text-xs text-muted-foreground ml-auto">
+            {totalHotels} total hotels in database
+          </span>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
@@ -97,11 +139,11 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
             onValueChange={(value) => handleDraftChange('country', value === 'all' ? '' : value)}
           >
             <SelectTrigger className="border-input">
-              <SelectValue placeholder="All Countries" />
+              <SelectValue placeholder={isLoadingOptions ? "Loading..." : "All Countries"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Countries</SelectItem>
-              {uniqueCountries.map(country => (
+              {filterOptions.countries.map(country => (
                 <SelectItem key={country} value={country}>{country}</SelectItem>
               ))}
             </SelectContent>
@@ -113,11 +155,11 @@ export const HotelFiltersComponent = ({ filters, onFiltersChange, hotels }: Hote
             onValueChange={(value) => handleDraftChange('city', value === 'all' ? '' : value)}
           >
             <SelectTrigger className="border-input">
-              <SelectValue placeholder="All Cities" />
+              <SelectValue placeholder={isLoadingOptions ? "Loading..." : "All Cities"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Cities</SelectItem>
-              {uniqueCities.map(city => (
+              {filterOptions.cities.map(city => (
                 <SelectItem key={city} value={city}>{city}</SelectItem>
               ))}
             </SelectContent>

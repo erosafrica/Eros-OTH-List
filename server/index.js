@@ -340,6 +340,83 @@ app.delete('/api/hotels/:id', authRequired, requireRole('admin'), async (req, re
   }
 });
 
+// Get total stats from database
+app.get('/api/hotels/stats', async (req, res) => {
+  try {
+    // Get total hotels count
+    const totalResult = await pool.query('SELECT COUNT(*) FROM hotels');
+    const totalHotels = parseInt(totalResult.rows[0].count);
+
+    // Get unique countries count
+    const countriesResult = await pool.query('SELECT COUNT(DISTINCT country) FROM hotels WHERE country IS NOT NULL AND country != \'\'');
+    const uniqueCountries = parseInt(countriesResult.rows[0].count);
+
+    // Get unique cities count
+    const citiesResult = await pool.query('SELECT COUNT(DISTINCT city) FROM hotels WHERE city IS NOT NULL AND city != \'\'');
+    const uniqueCities = parseInt(citiesResult.rows[0].count);
+
+    // Get available contracts count
+    const availableResult = await pool.query(`
+      SELECT COUNT(*) 
+      FROM hotels, 
+           jsonb_array_elements(rate_availability) AS rate
+      WHERE rate->>'available' = 'true'
+    `);
+    const availableContracts = parseInt(availableResult.rows[0].count);
+
+    // Get unavailable contracts count
+    const unavailableResult = await pool.query(`
+      SELECT COUNT(*) 
+      FROM hotels, 
+           jsonb_array_elements(rate_availability) AS rate
+      WHERE rate->>'available' = 'false'
+    `);
+    const unavailableContracts = parseInt(unavailableResult.rows[0].count);
+
+    res.json({
+      totalHotels,
+      uniqueCountries,
+      uniqueCities,
+      availableContracts,
+      unavailableContracts
+    });
+  } catch (err) {
+    console.error('GET /api/hotels/stats error', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// Get filter options (unique countries and cities)
+app.get('/api/hotels/filter-options', async (req, res) => {
+  try {
+    // Get unique countries
+    const countriesResult = await pool.query(`
+      SELECT DISTINCT country 
+      FROM hotels 
+      WHERE country IS NOT NULL AND country != '' 
+      ORDER BY country
+    `);
+    const countries = countriesResult.rows.map(row => row.country);
+
+    // Get unique cities
+    const citiesResult = await pool.query(`
+      SELECT DISTINCT city 
+      FROM hotels 
+      WHERE city IS NOT NULL AND city != '' 
+      ORDER BY city
+    `);
+    const cities = citiesResult.rows.map(row => row.city);
+
+    res.json({
+      countries,
+      cities
+    });
+  } catch (err) {
+    console.error('GET /api/hotels/filter-options error', err);
+    res.status(500).json({ error: 'Failed to fetch filter options' });
+  }
+});
+
 ensureSchema()
   .then(() => {
     app.listen(PORT, () => console.log(`[server] Listening on http://localhost:${PORT}`));
